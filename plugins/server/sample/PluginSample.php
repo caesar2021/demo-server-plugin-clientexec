@@ -5,12 +5,13 @@ require_once 'modules/admin/models/ServerPlugin.php';
 class PluginSample extends ServerPlugin
 {
     public $features = [
-        'packageName' => true,
+        'packageName' => false,
         'testConnection' => true,
         'showNameservers' => false,
-        'directlink' => true,
+        'directlink' => false,
         'upgrades' => true,
         'publicPanels' => [
+            // issue: it just redirect to product view instead of this custom page. no errors logged.
             'advanced' => 'Advanced'
         ]
     ];
@@ -28,71 +29,36 @@ class PluginSample extends ServerPlugin
                 'description' => 'Description viewable by admin in server settings',
                 'value' => 'Sample Server Plugin'
             ],
-            'Text Field' => [
+            'Website Name Custom Field' => [
                 'type' => 'text',
-                'description' => 'Text Field Description',
-                'value' => 'Default Value',
+                'description' => 'Enter Website Name',
+                'value' => '',
             ],
-            'Encrypted Text Field' => [
+            'Website URL Custom Field' => [
                 'type' => 'text',
-                'description' => 'Encrypted Text Field Description',
+                'description' => 'Enter Website URL',
                 'value' => '',
-                'encryptable' => true
             ],
-            'Password Text Field' => [
-                'type' => 'password',
-                'description' => 'Encrypted Password Field Description',
-                'value' => '',
-                'encryptable' => true
-            ],
-            'Text Area' => [
-                'type' => 'textarea',
-                'description' => 'Text Area Description',
-                'value' => 'Default Value',
-            ],
-            'Yes / No' => [
-                'type' => 'yesno',
-                'description' => 'Yes / No Description',
-                'value' => '1',
+            'package_addons' => [
+                'type' => 'hidden',
+                'description' => 'Supported signup addons variables',
+                'value' => ['DISKSPACE']
             ],
             'Actions' => [
                 'type' => 'hidden',
                 'description' => 'Current actions that are active for this plugin per server',
                 'value' => 'Create,Delete,Suspend,UnSuspend'
             ],
-            'Registered Actions For Customer' => [
-                'type' => 'hidden',
-                'description' => 'Current actions that are active for this plugin per server for customers',
-                'value' => 'authenticateClient'
-            ],
-            'package_addons' => [
-                'type' => 'hidden',
-                'description' => 'Supported signup addons variables',
-                'value' => ['DISKSPACE', 'BANDWIDTH', 'SSL']
-            ],
-            'package_vars' => [
-                'type' => 'hidden',
-                'description' => 'Whether package settings are set',
-                'value' => '1',
-            ],
             'package_vars_values' => [
                 'type'  => 'hidden',
                 'description' => lang('Package Settings'),
                 'value' => [
-                    'Text Field' => [
+                    'Disk' => [
                         'type' => 'text',
-                        'label' => 'Text Field Label',
-                        'description' => 'Text Field Description',
-                        'value' => 'Default Value',
+                        'label' => 'Disk Limit',
+                        'description' => 'Enter disk limit for this package in MB',
+                        'value' => '1024',
                     ],
-                    'Drop Down' => [
-                        'type' => 'dropdown',
-                        'multiple' => false,
-                        'getValues' => 'getDropDownValues',
-                        'label' => 'Drop Down Label',
-                        'description' => 'Drop Down Description',
-                        'vaue' => '',
-                    ]
                 ]
             ]
         ];
@@ -102,6 +68,9 @@ class PluginSample extends ServerPlugin
 
     public function validateCredentials($args)
     {
+        // issue: wasn't called when an order is created/activated and when a custom field is updated
+        CE_Lib::log(4, 'called validateCredentials');
+        CE_Lib::log(4, json_encode(['args' => $args]));
     }
 
     public function doDelete($args)
@@ -161,45 +130,17 @@ class PluginSample extends ServerPlugin
 
     public function update($args)
     {
-        foreach ($args['changes'] as $key => $value) {
-            switch ($key) {
-                case 'username':
-                    // update username on server
-                    break;
-                case 'password':
-                    // update password on server
-                    break;
-                case 'domain':
-                    // update domain on server
-                    break;
-                case 'ip':
-                    // update ip on server
-                    break;
-                case 'package':
-                    // update package on server
-                    break;
-            }
-        }
+        // issue: args['changes'] is always empty
+        CE_Lib::log(4, 'called update');
+        CE_Lib::log(4, json_encode(['args' => $args]));
     }
 
     public function getAvailableActions($userPackage)
     {
         $args = $this->buildParams($userPackage);
 
-        $actions = [];
-        // Get Status at Server
+        $actions = [ 'Create', 'Delete', 'Suspend', 'UnSuspend' ];
 
-        // If not created yet
-        $actions[] = 'Create';
-
-        // If we can delete
-        $actions[] = 'Delete';
-
-        // If we can suspend
-        $actions[] = 'Suspend';
-
-        // If suspended at Server
-        $actions[] = 'UnSuspend';
         return $actions;
     }
 
@@ -207,9 +148,31 @@ class PluginSample extends ServerPlugin
     {
         $userPackage = new UserPackage($args['package']['id']);
 
+        // if getCustomField is empty, then get value from args['package']
+        
+        $websiteName = $userPackage->getCustomField(
+            $args['server']['variables']['plugin_dummy_Website Name_Custom_Field'],
+            CUSTOM_FIELDS_FOR_PACKAGE
+        ) ?? $args['package']['customfields']['Website Name']['value'];
+        CE_Lib::log(4, 'Website Name: '.$websiteName);
+        
+        $websiteUrl = $userPackage->getCustomField(
+            $args['server']['variables']['plugin_dummy_Website URL_Custom_Field'],
+            CUSTOM_FIELDS_FOR_PACKAGE
+        ) ?? $args['package']['customfields']['Website URL']['value'];
+        CE_Lib::log(4, 'Website URL: '.$websiteUrl);
+
+        $packageDisk = (int) ($args['package']['variables']['Disk'] ?? 0);
+        CE_Lib::log(4, 'Package Disk: '.$packageDisk);
+        $addonDisk = (int) ($args['package']['addons']['DISKSPACE'] ?? 0);
+        CE_Lib::log(4, 'Addon Disk: '.$addonDisk);
+
+        $totalDisk = $packageDisk + $addonDisk;
+        CE_Lib::log(4, 'Total Disk: '.$totalDisk);
+
         // call create at the server
         // If we need to store custom data for later
-        $userPackage->setCustomField('Server Acct Properties', $externalServerId);
+        // $userPackage->setCustomField('Server Acct Properties', $externalServerId);
     }
 
     public function testConnection($args)
@@ -217,52 +180,6 @@ class PluginSample extends ServerPlugin
         CE_Lib::log(4, 'Testing connection to server');
 
         // if failed
-        throw new CE_Exception("Connection to server failed.");
-    }
-
-    public function getDropDownValues()
-    {
-        $values = [
-            '0' => 'Zero',
-            '1' => 'One',
-            '2' => 'Two'
-        ];
-
-        return $values;
-    }
-
-    public function getDirectLink($userPackage, $getRealLink = true, $fromAdmin = false, $isReseller = false)
-    {
-        $linkText = $this->user->lang('Login to Server');
-        $args = $this->buildParams($userPackage);
-
-        if ($getRealLink) {
-            // call login at server
-
-            return [
-                'link'    => '<li><a target="_blank" href="url to login">' . $linkText . '</a></li>',
-                'rawlink' =>  'url to login',
-                'form'    => ''
-            ];
-        } else {
-            return [
-                'link' => '<li><a target="_blank" href="index.php?fuse=clients&controller=products&action=openpackagedirectlink&packageId=' . $userPackage->getId() . '&sessionHash=' . CE_Lib::getSessionHash() . '">' . $linkText . '</a></li>',
-                'form' => ''
-            ];
-        }
-    }
-
-    public function dopanellogin($args)
-    {
-        $userPackage = new UserPackage($args['userPackageId']);
-        $response = $this->getDirectLink($userPackage);
-        return $response['rawlink'];
-    }
-
-    public function dopanellogin_reseller($args)
-    {
-        $userPackage = new UserPackage($args['userPackageId']);
-        $response = $this->getDirectLink($userPackage, true, false, true);
-        return $response['rawlink'];
+        //throw new CE_Exception('Connection to server failed.'');
     }
 }
