@@ -182,4 +182,10 @@ class PluginSample extends ServerPlugin
         // if failed
         //throw new CE_Exception('Connection to server failed.'');
     }
+
+    public function advanced()
+    {
+        $view->addScriptPath(APPLICATION_PATH . '/../plugins/server/sample/');
+        return $view->render('advanced.phtml');
+    }
 }
